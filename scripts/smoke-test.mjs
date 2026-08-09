@@ -4,17 +4,21 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import { mkdtempSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const smokeDataDir = join(root, "data", "smoke");
+// Fresh DB each run so refine/lessons/proposals stay deterministic.
+rmSync(smokeDataDir, { recursive: true, force: true });
+mkdirSync(smokeDataDir, { recursive: true });
 
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [join(root, "dist", "server.js")],
   env: {
     ...process.env,
-    APP_FACTORY_DATA_DIR: join(root, "data", "smoke"),
+    APP_FACTORY_DATA_DIR: smokeDataDir,
     APP_FACTORY_NO_BROWSER: "1",
   },
 });
