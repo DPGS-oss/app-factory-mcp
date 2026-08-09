@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as store from "../state/store.js";
 import { json, err } from "../util.js";
+import { trySyncPortableBrain, initPortableBrain } from "../portable-brain/index.js";
 
 // ---------- codebase analysis ----------
 
@@ -239,14 +240,24 @@ export function registerExistingAppTools(server: McpServer): void {
         `Imported existing app at ${appPath}. Frameworks: ${analysis.frameworks.join(", ") || "unknown"}. ` +
           `Goal: ${goal}. Baseline issues: ${analysis.issues.join(" | ") || "none detected"}`,
       );
+      let portableBrain = null;
+      try {
+        portableBrain = initPortableBrain(project.id, appPath);
+      } catch {
+        portableBrain = trySyncPortableBrain(project.id);
+      }
       return json({
         project: store.getProject(project.id),
         analysis,
+        portableBrain: portableBrain
+          ? { workspacePath: portableBrain.workspacePath, filesWritten: portableBrain.files.length }
+          : null,
         workflow:
           "Maintenance mode. Recommended loop: (1) run_audit for a scored baseline, " +
           "(2) suggest_improvements for ideas, (3) implement fixes/improvements, journaling decisions " +
           "with log_event, (4) test_app to verify it still runs, (5) run_audit again, (6) deploy. " +
-          "Use get_context anytime to recall what has happened.",
+          "Use get_context anytime to recall what has happened. A portable brain (AGENTS.md + " +
+          ".app-factory/) was written into the app so agents without MCP can resume from disk.",
       });
     },
   );

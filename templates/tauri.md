@@ -1,45 +1,38 @@
-# Scaffold: Tauri v2 (desktop - Windows, macOS, Linux)
+# Scaffold: Tauri v2 (desktop — Windows, macOS, Linux)
 
-Target: small, fast desktop apps with a web frontend and a Rust core.
-Prerequisite: Rust toolchain (`rustup`) plus platform build tools
-(Windows: VS Build Tools with C++; macOS: Xcode CLT; Linux: webkit2gtk dev packages).
+Target: small desktop apps with a web UI + Rust core.  
+Prereq: `rustup` + platform build tools (VS C++ / Xcode CLT / webkit2gtk).
 
-## Scaffold commands
+## Scaffold
 
 ```bash
 npm create tauri-app@latest <app-dir> -- --template react-ts --manager npm --yes
-cd <app-dir>
-npm install
+cd <app-dir> && npm install
 ```
 
-- Frontend: Vite + React + TypeScript in `src/`; reuse the same design token
-  wiring as the web template (CSS custom properties from uiStyle.vars, chosen
-  fonts self-hosted via `@fontsource/<font>` packages - desktop apps must not
-  depend on Google Fonts CDN at runtime).
-- Icons: same chosen icon package as the web app (e.g. `lucide-react`).
+- UI: Vite + React + TS in `src/`; CSS variables from designImplementation; fonts via `@fontsource/*` (no Google Fonts CDN at runtime).
+- Icons: same package as web (e.g. `lucide-react`).
+- Share `src/lib/contracts` shapes with any companion web API.
 
-## Baseline requirements
+## Baseline
 
-- `src-tauri/tauri.conf.json`: productName, identifier (com.<user>.<app>), window
-  default size 1200x800 with min 800x600, app icons generated via `npm run tauri icon <1024px png>`.
-- Capabilities: grant ONLY the permissions the app actually uses (fs scope limited
-  to app data dir, no shell access unless required). Tauri's allowlist is the
-  security boundary - keep it minimal.
-- Local data: store in `appDataDir()` via the fs plugin or SQLite via `tauri-plugin-sql`.
-- Native integration where it helps: system tray, notifications
-  (`tauri-plugin-notification`), autostart (`tauri-plugin-autostart`) - only if the
-  interview asked for them.
-- Updater: configure `tauri-plugin-updater` if the user wants auto-updates
-  (requires a hosting endpoint and signing keys).
-- Keyboard shortcuts for primary actions; everything keyboard-reachable.
+- `src-tauri/tauri.conf.json`: productName, identifier `com.<user>.<app>`, window 1200×800 (min 800×600), icons via `npm run tauri icon <1024.png>`.
+- Capabilities: grant ONLY needed permissions; fs scoped to app data dir; no shell unless required.
+- Local data: `appDataDir()` or `tauri-plugin-sql`.
+- Tray / notifications / autostart only if interview asked.
+- Updater (`tauri-plugin-updater`) only if requested (needs host + signing keys).
+- Keyboard shortcuts for primary actions; everything keyboard-reachable; empty/loading/error on data views.
+- Env validation for any cloud API keys; never hardcode secrets.
 
-## Development & build (deploy tool target: tauri-bundle)
+## Scripts
+
+`"typecheck": "tsc --noEmit"`, `"tauri": "tauri"`, `"test"` for UI unit tests where present.
+
+## Build (tauri-bundle)
 
 ```bash
-npm run tauri dev      # run the desktop app live
-npm run tauri build    # installers in src-tauri/target/release/bundle/
+npm run tauri dev
+npm run tauri build   # installers under src-tauri/target/release/bundle/
 ```
 
-Outputs: `.msi`/`.exe` (Windows), `.dmg`/`.app` (macOS), `.deb`/`.AppImage`/`.rpm` (Linux).
-Code signing: unsigned builds trigger OS warnings; for distribution set up a signing
-certificate per platform (document this in the README as a launch task).
+Outputs: `.msi`/`.exe`, `.dmg`/`.app`, `.deb`/`.AppImage`/`.rpm`. Document code-signing as a launch task in README.

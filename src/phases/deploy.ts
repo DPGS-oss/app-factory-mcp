@@ -262,7 +262,22 @@ export function registerDeployTools(server: McpServer): void {
 
       const result = await runCommand(command!.cmd, command!.args, appPath, 1200000);
       const ok = result.code === 0;
-      if (ok) store.setPhase(projectId, "done");
+      if (ok) {
+        store.setPhase(projectId, "done");
+        store.logEvent(
+          projectId,
+          "problem",
+          "refine-candidate",
+          `Deploy to ${target} succeeded. Call refine to distill deploy/ops lessons; remember the user's deploy preference (global).`,
+        );
+      } else {
+        store.logEvent(
+          projectId,
+          "problem",
+          "deploy-failed",
+          `Deploy to ${target} failed (exit ${result.code}). Fix root cause from output, retry deploy, then refine.`,
+        );
+      }
       return json({
         executed: true,
         success: ok,
@@ -272,10 +287,16 @@ export function registerDeployTools(server: McpServer): void {
           ? {
               projectComplete: true,
               finalStep:
-                "Deployment succeeded. Tell the USER where the app lives, and store their deploy " +
-                "preference with remember (scope global).",
+                "Deployment succeeded. Tell the USER where the app lives, store their deploy " +
+                "preference with remember (scope global), and call refine to capture lasting lessons.",
+              learningNudge: "Call refine before ending the session.",
             }
-          : { hint: "Deployment failed - read the output, fix the cause, and retry." }),
+          : {
+              hint:
+                "Deployment failed — fix the ROOT CAUSE from the output (env, build, auth, config), " +
+                "retry deploy, then call refine so the failure becomes a lasting lesson.",
+              learningNudge: "Journaled as deploy-failed; refine after recovery.",
+            }),
       });
     },
   );

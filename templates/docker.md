@@ -1,14 +1,13 @@
 # Scaffold: Docker Compose (local / self-hosted)
 
-Target: the app runs on the user's own machine, home server or VPS - no cloud vendor.
-Usually combined with the Next.js PWA template: build the web app, then containerize it.
+Target: run on the user's machine, NAS, or VPS — no cloud vendor required.  
+Usually pairs with `nextjs-pwa` (`output: "standalone"` in `next.config.ts`).
 
 ## Approach
 
-1. Build the app with the `nextjs-pwa` template (set `output: "standalone"` in `next.config.ts`).
-2. The App Factory `deploy` tool (target `docker`) generates the `Dockerfile`,
-   `.dockerignore` and `docker-compose.yml` automatically.
-3. If the app needs a database, extend the generated compose file with a `db` service:
+1. Build the app with the Next.js PWA template (contracts, env validation, health endpoint).
+2. App Factory `deploy` (target `docker`) writes `Dockerfile`, `.dockerignore`, `docker-compose.yml`.
+3. If a DB is needed, extend compose:
 
 ```yaml
   db:
@@ -23,22 +22,19 @@ volumes:
   db-data:
 ```
 
-## Baseline requirements
+## Baseline
 
-- `.env` file holds all secrets; `.env.example` documents them; compose reads via `env_file`.
-- Containers run as a non-root user (the generated Dockerfile already does this).
-- Data that must survive restarts lives in named volumes - never inside the container.
-- Health check: wire the app's `/api/health` endpoint into compose (`healthcheck:`) so
-  restarts are automatic.
-- Backups: for SQLite copy the db file on a schedule; for Postgres use `pg_dump` cron.
-  Document the chosen backup approach in the README.
-- If exposed to the internet: put a reverse proxy with HTTPS in front
-  (Caddy is the simplest: two-line Caddyfile gives automatic Let's Encrypt certificates).
+- Secrets in `.env`; document in `.env.example`; compose uses `env_file`.
+- Non-root container user (generated Dockerfile does this).
+- Persist data in named volumes — never only inside the container filesystem.
+- Compose `healthcheck` against `/api/health`.
+- Document backups (SQLite file copy or `pg_dump` cron) in README.
+- Public internet: reverse proxy + HTTPS (Caddy is simplest).
 
-## Run (deploy tool target: docker)
+## Run
 
 ```bash
-docker compose up -d --build   # build and start
-docker compose logs -f app     # watch logs
-docker compose down            # stop
+docker compose up -d --build
+docker compose logs -f app
+docker compose down
 ```

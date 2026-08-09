@@ -71,6 +71,15 @@ test("checklist loads with well-formed questions", () => {
     }
   }
   assert.ok(verifyItems().length >= 10);
+  assert.ok(cats.some((c) => c.id === "ux-states"), "production UX states category present");
+  assert.ok(
+    cats.flatMap((c) => c.questions).some((q) => q.id === "data.migrations"),
+    "migrations question present",
+  );
+  assert.ok(
+    cats.flatMap((c) => c.questions).some((q) => q.id === "security.rate-limits"),
+    "rate-limits question present",
+  );
   // Keyword-less categories are always relevant.
   const relevant = relevantCategories("just a plain note taking app");
   const keywordless = cats.filter((c) => c.keywords.length === 0).map((c) => c.id);

@@ -157,6 +157,20 @@ function getDb(): DatabaseSync {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS proposals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      problem TEXT NOT NULL,
+      proposed_change TEXT NOT NULL,
+      evidence TEXT NOT NULL,
+      justification1 TEXT,
+      justification2 TEXT,
+      measured_evidence TEXT,
+      status TEXT NOT NULL DEFAULT 'proposed',
+      verification TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
   return db;
 }
@@ -585,6 +599,93 @@ function rowToGoal(row: Record<string, unknown>): Goal {
     successCriteria: row.success_criteria as string,
     status: row.status as Goal["status"],
     progress: row.progress as string,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+// ---------- self-improvement proposals ----------
+
+export interface Proposal {
+  id: number;
+  title: string;
+  problem: string;
+  proposedChange: string;
+  evidence: string;
+  justification1: string | null;
+  justification2: string | null;
+  measuredEvidence: string | null;
+  status: "proposed" | "justified-once" | "justified-twice" | "applied" | "rejected";
+  verification: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function addProposal(title: string, problem: string, proposedChange: string, evidence: string): Proposal {
+  const d = getDb();
+  const ts = now();
+  d.prepare(
+    `INSERT INTO proposals (title, problem, proposed_change, evidence, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'proposed', ?, ?)`,
+  ).run(title, problem, proposedChange, evidence, ts, ts);
+  const row = d.prepare(`SELECT * FROM proposals ORDER BY id DESC LIMIT 1`).get() as Record<string, unknown>;
+  return rowToProposal(row);
+}
+
+export function getProposal(id: number): Proposal | null {
+  const row = getDb().prepare(`SELECT * FROM proposals WHERE id = ?`).get(id) as Record<string, unknown> | undefined;
+  return row ? rowToProposal(row) : null;
+}
+
+export function listProposals(status?: Proposal["status"]): Proposal[] {
+  const rows = (
+    status
+      ? getDb().prepare(`SELECT * FROM proposals WHERE status = ? ORDER BY id DESC LIMIT 50`).all(status)
+      : getDb().prepare(`SELECT * FROM proposals ORDER BY id DESC LIMIT 50`).all()
+  ) as Record<string, unknown>[];
+  return rows.map(rowToProposal);
+}
+
+export function updateProposal(
+  id: number,
+  fields: Partial<Pick<Proposal, "justification1" | "justification2" | "measuredEvidence" | "status" | "verification">>,
+): Proposal | null {
+  const d = getDb();
+  if (!getProposal(id)) return null;
+  const map: Record<string, string> = {
+    justification1: "justification1",
+    justification2: "justification2",
+    measuredEvidence: "measured_evidence",
+    status: "status",
+    verification: "verification",
+  };
+  const sets: string[] = [];
+  const params: (string | null)[] = [];
+  for (const [key, col] of Object.entries(map)) {
+    const value = (fields as Record<string, string | null | undefined>)[key];
+    if (value !== undefined) {
+      sets.push(`${col} = ?`);
+      params.push(value);
+    }
+  }
+  if (sets.length) {
+    d.prepare(`UPDATE proposals SET ${sets.join(", ")}, updated_at = ? WHERE id = ?`).run(...params, now(), id);
+  }
+  return getProposal(id);
+}
+
+function rowToProposal(row: Record<string, unknown>): Proposal {
+  return {
+    id: row.id as number,
+    title: row.title as string,
+    problem: row.problem as string,
+    proposedChange: row.proposed_change as string,
+    evidence: row.evidence as string,
+    justification1: (row.justification1 as string) ?? null,
+    justification2: (row.justification2 as string) ?? null,
+    measuredEvidence: (row.measured_evidence as string) ?? null,
+    status: row.status as Proposal["status"],
+    verification: (row.verification as string) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

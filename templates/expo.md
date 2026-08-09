@@ -1,8 +1,8 @@
-# Scaffold: Expo (native mobile - App Store & Play Store)
+# Scaffold: Expo (native mobile — App Store & Play Store)
 
-Target: real native apps for iOS and Android from one React Native codebase.
+Target: native iOS/Android from one React Native codebase.
 
-## Scaffold commands
+## Scaffold
 
 ```bash
 npx create-expo-app@latest <app-dir> --template default --yes
@@ -10,37 +10,35 @@ cd <app-dir>
 npx expo install expo-router expo-font expo-splash-screen expo-status-bar
 ```
 
-- Navigation: use `expo-router` (file-based routes in `app/`).
-- Icons: `lucide-react-native` for the Lucide choice; `@expo/vector-icons` otherwise (map the chosen set as closely as possible).
-- Animation "smooth"/"playful": `npx expo install react-native-reanimated` and use spring configs from the animation guidance.
-- State/data: keep business logic in `lib/` shared modules mirroring the web app's structure when both targets exist.
+- Routes: `expo-router` (`app/`).
+- Icons: `lucide-react-native` or `@expo/vector-icons` mapped to design choice.
+- Motion smooth/playful: `npx expo install react-native-reanimated`.
+- Shared logic in `lib/` mirroring web contracts when both targets exist (`lib/contracts` types).
 
-## Design token wiring
+## Theme
 
-Create `constants/theme.ts` exporting the design choices as a typed theme object
-(colors from uiStyle.vars, radius as number, font family names). Load the chosen
-Google Fonts with `expo-font` / `@expo-google-fonts/<font>` packages and apply
-via a ThemeProvider. Follow the uiStyle guidance string for density and tone.
+`constants/theme.ts` — typed tokens from designImplementation (colors, radius, fonts). Load fonts with `expo-font` / `@expo-google-fonts/*` via ThemeProvider. Follow uiStyle guidance for density/tone.
 
-## Baseline requirements
+## Baseline
 
-- `app.json`: name, slug, scheme, icons (1024px), splash screen using the accent color, `ios.bundleIdentifier` and `android.package` derived from the app name.
-- Offline-tolerant: handle no-network states on every screen that fetches.
-- Deep linking configured via the scheme.
-- Accessibility: `accessibilityLabel`/`accessibilityRole` on all touchables; touch targets >= 44pt.
-- Secrets only via `expo-constants` extra + EAS secrets - never hardcoded.
-- If the app has a backend, it is a separate web API (the Next.js app or dedicated server); the mobile app talks to it over HTTPS.
+- `app.json`: name, slug, scheme, 1024 icon, splash = accent, `ios.bundleIdentifier` + `android.package`.
+- Every fetch screen: loading + empty + offline/error with retry.
+- Deep links via scheme.
+- A11y: `accessibilityLabel`/`accessibilityRole`; touch targets ≥ 44pt; honor reduce-motion.
+- Secrets only via `expo-constants` extra + EAS secrets.
+- Backend is a separate HTTPS API (Next.js or dedicated); mobile never embeds secrets.
 
-## Build & store deployment (deploy tool target: expo-eas)
+## Scripts
+
+`"typecheck": "tsc --noEmit"`, `"test": "jest"` or vitest-compatible runner if configured. Document EAS profiles in README.
+
+## Deploy (expo-eas)
 
 ```bash
-npm i -g eas-cli
-eas login
-eas build:configure           # creates eas.json
-eas build --platform all      # cloud builds for iOS + Android
-eas submit --platform ios     # App Store (needs Apple Developer account)
-eas submit --platform android # Play Store (needs Play Console account)
+npm i -g eas-cli && eas login
+eas build:configure
+eas build --platform all
+eas submit --platform ios|android
 ```
 
-For quick user testing without store accounts: `eas build --profile preview` produces
-an installable APK / TestFlight-ready build.
+Preview without stores: `eas build --profile preview`.

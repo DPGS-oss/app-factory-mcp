@@ -1,6 +1,6 @@
 {
   "name": "app-factory-mcp",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "App Factory - an orchestrator MCP server that guides any MCP-capable agent (Cursor, Devin, Claude...) from an app description to a deployed, audited application.",
   "type": "module",
   "main": "dist/server.js",
@@ -37,7 +37,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "tsc --watch",
-    "test": "node --test test/store.test.mjs test/catalog.test.mjs",
+    "test": "node --test test/store.test.mjs test/catalog.test.mjs test/evolve.test.mjs test/portable-brain.test.mjs test/learning.test.mjs test/blueprint-quality.test.mjs",
     "smoke": "node scripts/smoke-test.mjs",
     "prepublishOnly": "npm run build"
   },

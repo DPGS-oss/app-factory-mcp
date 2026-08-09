@@ -52,10 +52,30 @@ export function registerAuditTools(server: McpServer): void {
       report.passed = report.score >= minScore && report.criticalFindings.length === 0;
 
       if (project) {
+        const priorFailedCount = store
+          .getAudits(project.id)
+          .filter((a) => a.score < minScore || ((a.report.criticalFindings as unknown[]) ?? []).length > 0)
+          .length;
         store.saveAudit(project.id, report.score, report as unknown as Record<string, unknown>);
         if (report.passed && project.phase === "audit") {
-          store.setPhase(project.id, "deploy");
-          project = store.getProject(project.id);
+          const projectKey = project.id;
+          store.setPhase(projectKey, "deploy");
+          project = store.getProject(projectKey);
+          if (priorFailedCount > 0) {
+            store.logEvent(
+              projectKey,
+              "problem",
+              "refine-candidate",
+              `Audit recovered to score ${report.score} after ${priorFailedCount} prior failure(s). Call refine to distill root-cause lessons (not band-aids).`,
+            );
+          }
+        } else if (!report.passed) {
+          store.logEvent(
+            project.id,
+            "problem",
+            "audit-failed",
+            `Audit score ${report.score}, critical=${report.criticalFindings.length}. Fix ROOT CAUSES in fixList (not symptoms), re-run audit, then refine.`,
+          );
         }
       }
 
@@ -63,9 +83,16 @@ export function registerAuditTools(server: McpServer): void {
         ...report,
         manualChecklist: verifyItems(),
         verdict: report.passed
-          ? "AUDIT PASSED. Also walk the manualChecklist above and confirm each item before deploying."
+          ? "AUDIT PASSED. Also walk the manualChecklist above and confirm each item before deploying." +
+            (project
+              ? " If this pass followed earlier failures, call refine to capture lasting lessons."
+              : "")
           : `AUDIT NOT PASSED (score ${report.score}, ${report.criticalFindings.length} critical). ` +
-            "Fix every item in fixList, then run run_audit again. Do not proceed to deploy.",
+            "Fix ROOT CAUSES for every item in fixList (do not paper over with disables/ignores), " +
+            "then run run_audit again. Do not proceed to deploy. After the gate passes, call refine.",
+        learningNudge: report.passed
+          ? "If audits failed earlier in this project, call refine before deploy."
+          : "Journaled as audit-failed. After fixes pass, distill lessons with refine.",
         ...(project ? { nextStep: nextStep(project) } : {}),
       });
     },

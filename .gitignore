@@ -2,3 +2,7 @@ node_modules/
 dist/
 data/
 *.log
+# Smoke/import may write a portable brain into this repo; never commit it.
+.app-factory/
+/AGENTS.md
+/CLAUDE.md

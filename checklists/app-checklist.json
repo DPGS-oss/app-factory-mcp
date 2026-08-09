@@ -81,12 +81,19 @@
           "priority": "recommended",
           "question": "Should users be able to export or permanently delete their data?",
           "why": "Data portability and deletion are both good practice and legally required in many regions."
+        },
+        {
+          "id": "data.migrations",
+          "priority": "recommended",
+          "question": "How should schema changes be applied over time — migration files in git (recommended), or is a disposable local DB fine for v1?",
+          "why": "Without a migration path, the first production schema change becomes an emergency."
         }
       ],
       "verify": [
         "All user input is validated server-side.",
         "Database queries are parameterized (no SQL injection).",
-        "File uploads validate type and size server-side."
+        "File uploads validate type and size server-side.",
+        "Schema changes are expressed as migrations (or documented as a deliberate non-goal)."
       ]
     },
     {
@@ -114,6 +121,23 @@
         }
       ],
       "verify": ["Every must-have feature from the interview exists and works."]
+    },
+    {
+      "id": "ux-states",
+      "title": "UX states (empty, loading, errors)",
+      "keywords": ["empty", "loading", "error", "offline", "skeleton", "spinner"],
+      "questions": [
+        {
+          "id": "ux-states.coverage",
+          "priority": "core",
+          "question": "For the main screens: what should users see when there is no data yet, while data is loading, and when something fails? Any must-have copy or recovery actions?",
+          "why": "Production apps never show blank dead-ends; empty/loading/error states are part of the product, not polish."
+        }
+      ],
+      "verify": [
+        "Primary lists/details have empty, loading, and error states with a recovery action.",
+        "Destructive actions are reversible or clearly confirmed."
+      ]
     },
     {
       "id": "payments",
@@ -223,19 +247,26 @@
     },
     {
       "id": "errors",
-      "title": "Error tracking & logging",
-      "keywords": [],
+      "title": "Error tracking & observability",
+      "keywords": ["sentry", "monitor", "uptime", "observability", "logging"],
       "questions": [
         {
           "id": "errors.tracking",
           "priority": "recommended",
           "question": "Should production errors be reported somewhere (e.g. Sentry), or is console/file logging enough for now?",
           "why": "You cannot fix what you cannot see; error tracking pays for itself immediately."
+        },
+        {
+          "id": "errors.health",
+          "priority": "recommended",
+          "question": "Do you want a /api/health (or similar) endpoint and basic uptime monitoring after deploy?",
+          "why": "A health check is how deploys and hosts prove the app is alive."
         }
       ],
       "verify": [
         "Unhandled errors show a friendly error page, never a stack trace.",
-        "Logs never contain passwords, tokens or personal data."
+        "Logs never contain passwords, tokens or personal data.",
+        "A health endpoint exists and is documented."
       ]
     },
     {
@@ -248,6 +279,12 @@
           "priority": "core",
           "question": "How sensitive is the data (public, personal, financial, medical)? Any compliance needs (GDPR, HIPAA, SOC2)?",
           "why": "Data sensitivity sets the security bar for encryption, access control and auditing."
+        },
+        {
+          "id": "security.rate-limits",
+          "priority": "recommended",
+          "question": "Are there abuse risks (spam signups, scraping, expensive AI/API calls) that need rate limits from day one?",
+          "why": "Rate limits are cheap early and painful to retrofit after abuse starts."
         }
       ],
       "verify": [
@@ -383,8 +420,15 @@
     {
       "id": "testing",
       "title": "Testing",
-      "keywords": [],
-      "questions": [],
+      "keywords": ["test", "qa", "playwright", "vitest"],
+      "questions": [
+        {
+          "id": "testing.strategy",
+          "priority": "recommended",
+          "question": "How thorough should automated tests be for v1 — smoke e2e only, unit+e2e on the main flow, or fuller coverage?",
+          "why": "Sets the tests work-package bar and CI time expectations."
+        }
+      ],
       "verify": [
         "Unit tests exist for core business logic.",
         "At least one end-to-end test covers the main user flow.",

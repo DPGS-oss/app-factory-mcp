@@ -4,6 +4,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
+import { mkdtempSync, existsSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -132,11 +134,12 @@ const afterDesign = parse(
 if (afterDesign.project.phase !== "blueprint") throw new Error("expected blueprint phase");
 console.log("design gallery -> choices collected, phase is now \"blueprint\"");
 
-// Phase 4: blueprint + work packages
+// Phase 4: blueprint + work packages (+ portable brain in workspace)
+const smokeWs = mkdtempSync(join(tmpdir(), "appfactory-smoke-ws-"));
 const bp = parse(
   await client.callTool({
     name: "generate_blueprint",
-    arguments: { projectId: pid, workspacePath: "C:/tmp/smoke-app" },
+    arguments: { projectId: pid, workspacePath: smokeWs },
   }),
 );
 if (!bp.blueprint.workPackages.length) throw new Error("no work packages");
@@ -144,6 +147,41 @@ console.log(
   `generate_blueprint -> targets: ${bp.blueprint.targets.join(",")}; packages: ` +
     bp.blueprint.workPackages.map((p) => p.packageId).join(", "),
 );
+
+// Portable brain should exist after blueprint sets workspacePath (auto-sync)
+for (const rel of [
+  "AGENTS.md",
+  "CLAUDE.md",
+  ".app-factory/BRAIN.md",
+  ".app-factory/state.json",
+  ".app-factory/journal.jsonl",
+  ".app-factory/decisions.md",
+  ".app-factory/open-problems.md",
+]) {
+  if (!existsSync(join(smokeWs, rel))) throw new Error(`portable brain missing ${rel}`);
+}
+const brainState = JSON.parse(readFileSync(join(smokeWs, ".app-factory", "state.json"), "utf8"));
+if (brainState.projectId !== pid) throw new Error("portable brain state.projectId mismatch");
+if (brainState.phase !== "build") throw new Error("portable brain should reflect build phase");
+
+await client.callTool({
+  name: "write_portable_brain",
+  arguments: {
+    projectId: pid,
+    kind: "decision",
+    name: "smoke-pb",
+    detail: "portable brain verified in smoke test",
+  },
+});
+const pbRead = parse(
+  await client.callTool({ name: "read_portable_brain", arguments: { projectId: pid } }),
+);
+if (!pbRead.state?.decisions?.some((d) => d.name === "smoke-pb")) {
+  throw new Error("read_portable_brain missing written decision");
+}
+const synced = parse(await client.callTool({ name: "sync_portable_brain", arguments: { projectId: pid } }));
+if (synced.workspacePath !== smokeWs) throw new Error("sync_portable_brain path mismatch");
+console.log("portable brain -> files present, write/read/sync ok at", smokeWs);
 
 const foundation = parse(
   await client.callTool({
@@ -343,6 +381,7 @@ if (goalUpdate.goal.status !== "done") throw new Error("goal not done");
 
 const review = parse(await client.callTool({ name: "refine", arguments: { projectId: pid } }));
 if (!review.review || !Array.isArray(review.review.repeatedTools)) throw new Error("refine review missing");
+const smokeLessonMarker = `smoke-${Date.now()}`;
 const refined = parse(
   await client.callTool({
     name: "refine",
@@ -351,17 +390,20 @@ const refined = parse(
       lessons: [
         {
           topic: "smoke",
-          lesson: "Smoke lessons persist",
-          evidence: "this smoke test",
+          lesson:
+            `When running the App Factory smoke test (${smokeLessonMarker}), persist a global lesson so get_context injects it next time.`,
+          evidence: `this smoke test refine step ${smokeLessonMarker}`,
           scope: "global",
         },
       ],
     },
   }),
 );
-if (refined.recorded.length !== 1) throw new Error("lesson not recorded");
+if (refined.recorded.length !== 1) {
+  throw new Error(`lesson not recorded: ${JSON.stringify(refined.rejected ?? refined)}`);
+}
 const ctxWithLessons = parse(await client.callTool({ name: "get_context", arguments: { projectId: pid } }));
-if (!ctxWithLessons.lessonsLearned.some((l) => l.includes("Smoke lessons persist")))
+if (!ctxWithLessons.lessonsLearned.some((l) => l.includes(smokeLessonMarker)))
   throw new Error("lesson not injected into get_context");
 if (!ctxWithLessons.activeGoals) throw new Error("activeGoals missing from get_context");
 console.log("self-improvement -> goal lifecycle ok, refine recorded a lesson, get_context injects lessons");
@@ -391,6 +433,86 @@ if (!legal.applicableRegulations.some((r) => r.includes("CCPA"))) throw new Erro
 console.log(
   `generate_legal_docs -> ${Object.keys(legal.documents).length} documents, ` +
     `${legal.complianceChecklist.length} checklist items, regulations: ${legal.applicableRegulations.join("; ")}`,
+);
+
+// Self-evolution: the double-justification gate must hold at every step.
+async function expectError(name, args, mustContain) {
+  const res = await client.callTool({ name, arguments: args });
+  if (!res.isError) throw new Error(`${name} should have been refused (${mustContain})`);
+  const text = res.content[0].text;
+  if (!text.includes(mustContain)) throw new Error(`${name} refusal missing "${mustContain}": ${text}`);
+}
+
+const proposal = parse(
+  await client.callTool({
+    name: "propose_self_improvement",
+    arguments: {
+      title: "smoke: tighten web_search error handling",
+      problem: "smoke-test synthetic problem",
+      proposedChange: "n/a - smoke test only",
+      evidence: "synthetic",
+    },
+  }),
+).proposal;
+
+await expectError("apply_self_improvement", { proposalId: proposal.id }, "justified-twice");
+await expectError("commit_self_improvement", { proposalId: proposal.id, summary: "x" }, "justified-twice");
+await expectError(
+  "justify_self_improvement",
+  { proposalId: proposal.id, justification: "too short" },
+  "too thin",
+);
+
+const just1 =
+  "Repeated web_search failures in the journal show the parser assumes a stable HTML structure; " +
+  "hardening it with a fallback selector removes a whole class of silent failures at negligible risk.";
+const j1 = parse(
+  await client.callTool({
+    name: "justify_self_improvement",
+    arguments: { proposalId: proposal.id, justification: just1 },
+  }),
+);
+if (j1.proposal.status !== "justified-once") throw new Error("first justification not recorded");
+
+await expectError(
+  "justify_self_improvement",
+  { proposalId: proposal.id, justification: just1, measuredEvidence: "5 -> ERROR events recorded for web_search in the events table" },
+  "too similar",
+);
+const just2 =
+  "Measured across the event log: this tool errored multiple times in one week, costing retries and " +
+  "user confusion each occurrence. A regression test would have caught every instance before release.";
+await expectError(
+  "justify_self_improvement",
+  { proposalId: proposal.id, justification: just2 },
+  "measuredEvidence",
+);
+const j2 = parse(
+  await client.callTool({
+    name: "justify_self_improvement",
+    arguments: { proposalId: proposal.id, justification: just2, measuredEvidence: "5 -> ERROR events for web_search in events table this week" },
+  }),
+);
+if (j2.proposal.status !== "justified-twice") throw new Error("second justification not recorded");
+
+const applyInfo = parse(await client.callTool({ name: "apply_self_improvement", arguments: { proposalId: proposal.id } }));
+if (!applyInfo.repoPath || !Array.isArray(applyInfo.contract)) throw new Error("apply contract missing");
+
+// Clean up: reject the synthetic proposal so it never reaches a real commit.
+const rejected = parse(
+  await client.callTool({
+    name: "reject_self_improvement",
+    arguments: { proposalId: proposal.id, reason: "synthetic smoke-test proposal" },
+  }),
+);
+if (rejected.proposal.status !== "rejected") throw new Error("reject failed");
+await expectError("justify_self_improvement", { proposalId: proposal.id, justification: just2, measuredEvidence: "x" }, "cannot be justified");
+
+const proposals = parse(await client.callTool({ name: "list_self_improvements", arguments: { status: "rejected" } }));
+if (!proposals.some((p) => p.id === proposal.id)) throw new Error("proposal not listed");
+console.log(
+  "self-evolution -> gate enforced: premature apply/commit refused, thin justification refused, " +
+    "paraphrase refused, missing measured evidence refused, full double-justification accepted, rejection works",
 );
 
 await client.close();

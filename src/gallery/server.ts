@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import * as store from "../state/store.js";
 import { galleryHtml } from "./html.js";
 import { DESIGN_CATEGORIES, findChoice } from "./options.js";
+import { trySyncPortableBrain } from "../portable-brain/index.js";
 
 interface RunningGallery {
   server: Server;
@@ -59,6 +60,7 @@ export async function launchGallery(projectId: string): Promise<{ url: string; a
               store.saveDesignChoice(projectId, cat, "custom", value as Record<string, unknown>);
             }
           }
+          trySyncPortableBrain(projectId);
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: true }));
         } catch (e) {
