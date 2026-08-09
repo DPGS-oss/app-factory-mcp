@@ -222,11 +222,15 @@ export function registerBlueprintTools(server: McpServer): void {
 
       const answers = store.getAnswers(projectId);
       const targets = inferTargets(answers);
+      const lessons = store.getLessons(projectId).slice(0, 10);
       const spec: Record<string, unknown> = {
         project: { name: project.name, description: project.description, workspacePath: project.workspacePath },
         package: pkg,
         designChoices: Object.fromEntries(store.getDesignChoices(projectId).map((c) => [c.category, c.choice])),
         interviewAnswers: answers,
+        ...(lessons.length
+          ? { lessonsLearned: lessons.map((l) => `[${l.topic}] ${l.lesson}`) }
+          : {}),
       };
       if (packageId === "foundation") {
         spec.templates = Object.fromEntries(targets.map((t) => [t, readTemplate(t)]));

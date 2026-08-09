@@ -325,6 +325,47 @@ if (gh.isError) {
   console.log("search_github ->", repos.results.map((r) => r.fullName).join(", "));
 }
 
+// Self-improvement: goals + refine
+const goal = parse(
+  await client.callTool({
+    name: "set_goal",
+    arguments: { projectId: pid, goal: "Ship smoke-app", successCriteria: "audit passes and deploy succeeds" },
+  }),
+);
+if (goal.goal.status !== "active") throw new Error("goal not active");
+const goalUpdate = parse(
+  await client.callTool({
+    name: "update_goal",
+    arguments: { goalId: goal.goal.id, progress: "packages built", status: "done" },
+  }),
+);
+if (goalUpdate.goal.status !== "done") throw new Error("goal not done");
+
+const review = parse(await client.callTool({ name: "refine", arguments: { projectId: pid } }));
+if (!review.review || !Array.isArray(review.review.repeatedTools)) throw new Error("refine review missing");
+const refined = parse(
+  await client.callTool({
+    name: "refine",
+    arguments: {
+      projectId: pid,
+      lessons: [
+        {
+          topic: "smoke",
+          lesson: "Smoke lessons persist",
+          evidence: "this smoke test",
+          scope: "global",
+        },
+      ],
+    },
+  }),
+);
+if (refined.recorded.length !== 1) throw new Error("lesson not recorded");
+const ctxWithLessons = parse(await client.callTool({ name: "get_context", arguments: { projectId: pid } }));
+if (!ctxWithLessons.lessonsLearned.some((l) => l.includes("Smoke lessons persist")))
+  throw new Error("lesson not injected into get_context");
+if (!ctxWithLessons.activeGoals) throw new Error("activeGoals missing from get_context");
+console.log("self-improvement -> goal lifecycle ok, refine recorded a lesson, get_context injects lessons");
+
 // Legal & compliance
 const legal = parse(
   await client.callTool({

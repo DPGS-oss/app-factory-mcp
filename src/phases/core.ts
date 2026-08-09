@@ -32,6 +32,8 @@ export function projectState(project: store.Project) {
     designChoices: store.getDesignChoices(project.id),
     workPackages: store.getWorkPackages(project.id),
     audits: store.getAudits(project.id).slice(0, 3),
+    activeGoals: store.getGoals(project.id, "active"),
+    lessonsLearned: store.getLessons(project.id).map((l) => `[${l.topic}] ${l.lesson}`),
     nextStep: nextStep(project),
   };
 }

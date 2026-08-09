@@ -1,9 +1,11 @@
 # App Factory MCP
 
-An orchestrator MCP server for Cursor that takes a plain-language app description all the way to a
-deployed, audited application. It guides Cursor's agent (and parallel subagents) through a strict
-quality workflow - the MCP owns the state machine, memory, checklists, design gallery and
-audit/deploy pipelines; the agent writes the code.
+[![CI](https://github.com/DPGS-oss/app-factory-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/DPGS-oss/app-factory-mcp/actions/workflows/ci.yml)
+
+An orchestrator MCP server that takes a plain-language app description all the way to a deployed,
+audited application. It guides the host agent (Cursor, Devin, Claude Desktop - any MCP client) and
+its parallel subagents through a strict quality workflow - the MCP owns the state machine, memory,
+checklists, design gallery and audit/deploy pipelines; the agent writes the code.
 
 ## The workflow
 
@@ -34,7 +36,8 @@ intake -> interview -> design -> blueprint -> build -> audit -> deploy
 5. **Build** - `get_work_package` / `report_package_done` coordinate the subagents.
 6. **Audit** - `run_audit`: one call runs typecheck, lint, tests, dependency vulnerability scan,
    secret scan, semgrep (if installed) and Lighthouse (if given a running URL). Returns a score and
-   a fix list; the workflow refuses to advance until it passes (score >= 80, zero critical findings).
+   a fix list; the workflow refuses to advance until it passes (score >= the configurable `minScore`
+   gate, default 80, with zero critical findings).
 7. **Deploy** - `get_deploy_options` / `deploy`: Vercel, Netlify, Docker (configs generated for
    you), local, Expo EAS or Tauri bundles.
 
@@ -42,7 +45,14 @@ Plus:
 
 - **The brain** - every tool call is journaled automatically; the agent records decisions, problems
   and milestones with `log_event`, and `get_context` reconstructs what is happening, what has
-  happened and what to do next - across sessions.
+  happened and what to do next - across sessions. Long journals are compacted automatically into
+  digest entries so recaps stay sharp on big projects.
+- **Self-improvement** - `refine` reviews the journal (errors, open problems, failed audits,
+  repeated patterns) and persists small, evidence-backed lessons. Lessons are injected into future
+  `get_context` recaps and work packages, so the system genuinely gets better with use - global
+  lessons carry across all projects.
+- **Persistent goals** - `set_goal` / `update_goal` keep an objective and measurable success
+  criteria alive across sessions, so any future session knows exactly what "done" means.
 - **Memory** - `remember` / `recall` (SQLite): global user preferences persist across projects, so
   every new project starts smarter.
 - **Existing apps** - `analyze_app` understands any codebase (frameworks, capabilities, issues),
@@ -66,6 +76,8 @@ Plus:
 
 Requires Node.js >= 22.5 (uses the built-in `node:sqlite`).
 
+From source:
+
 ```bash
 npm install
 npm run build
@@ -86,6 +98,24 @@ Register in Cursor's `~/.cursor/mcp.json`:
 
 Then reload Cursor and say e.g. *"Use app-factory to build me a recipe manager app"*.
 
+State is stored in `~/.app-factory` (or `./data` when running from a clone that already has one);
+override with the `APP_FACTORY_DATA_DIR` environment variable.
+
+## Beyond Cursor: Devin and other MCP clients
+
+App Factory speaks standard MCP over stdio, so any MCP-capable agent can run it:
+
+- **Devin (cloud)**: Settings -> MCP Marketplace -> **Add a custom MCP** -> transport STDIO,
+  command `node`, args `<path>/dist/server.js`.
+- **Devin CLI**: `devin mcp add app-factory -- node <path>/dist/server.js`
+- **Claude Desktop / others**: add the same command/args to their MCP config.
+
+Notes for headless/VM environments (like Devin's workspace): set `APP_FACTORY_NO_BROWSER=1` so
+`launch_design_gallery` serves the page without trying to open a browser (fetch the URL or use
+`set_design_choice` as the no-UI fallback), and set `GITHUB_TOKEN` for higher `search_github` rate
+limits. The brain, goals and lessons live in the data dir, so the same project can be advanced from
+Cursor one day and Devin the next.
+
 ## Optional audit tools
 
 The audit uses what it finds and skips the rest gracefully:
@@ -99,8 +129,11 @@ The audit uses what it finds and skips the rest gracefully:
 
 ```bash
 npm run build   # compile TypeScript
+npm test        # unit tests (store, lessons, goals, compaction, design catalog, gallery html)
 npm run smoke   # end-to-end test of the whole workflow over real stdio MCP
 ```
+
+CI runs build + unit tests + smoke on Ubuntu and Windows, Node 22 and 24, for every push and PR.
 
 Layout:
 

@@ -1,17 +1,45 @@
 {
   "name": "app-factory-mcp",
-  "version": "0.1.0",
-  "description": "App Factory - an orchestrator MCP for Cursor that guides the agent from an app description to a deployed, audited application.",
+  "version": "0.2.0",
+  "description": "App Factory - an orchestrator MCP server that guides any MCP-capable agent (Cursor, Devin, Claude...) from an app description to a deployed, audited application.",
   "type": "module",
   "main": "dist/server.js",
   "bin": {
     "app-factory-mcp": "dist/server.js"
   },
+  "files": [
+    "dist",
+    "checklists",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DPGS-oss/app-factory-mcp.git"
+  },
+  "homepage": "https://github.com/DPGS-oss/app-factory-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/DPGS-oss/app-factory-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "cursor",
+    "devin",
+    "agent",
+    "app-builder",
+    "orchestrator",
+    "audit",
+    "design"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "tsc --watch",
-    "smoke": "node scripts/smoke-test.mjs"
+    "test": "node --test test/store.test.mjs test/catalog.test.mjs",
+    "smoke": "node scripts/smoke-test.mjs",
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=22.5.0"

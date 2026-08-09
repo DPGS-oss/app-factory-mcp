@@ -17,7 +17,8 @@ export function registerAuditTools(server: McpServer): void {
         "typecheck, lint, tests, dependency vulnerability scan, secret scan, semgrep static security " +
         "analysis (if installed) and Lighthouse (if a running app url is provided). Returns a scored " +
         "report with a concrete fix list. Fix EVERYTHING in fixList and re-run until passed=true " +
-        "(score >= 80 with zero critical findings) - only then does the project advance to deploy. " +
+        "(score >= minScore, default 80, with zero critical findings) - only then does the project " +
+        "advance to deploy. " +
         "Also self-verify the manualChecklist items the tools cannot measure. " +
         "This tool can also audit any codebase standalone: pass appPath without projectId.",
       inputSchema: {
@@ -27,9 +28,15 @@ export function registerAuditTools(server: McpServer): void {
           .string()
           .optional()
           .describe("URL of the running app (e.g. http://localhost:3000) to include a Lighthouse audit"),
+        minScore: z
+          .number()
+          .min(0)
+          .max(100)
+          .default(80)
+          .describe("Quality gate: minimum score to pass. Raise it for stricter projects (ask the USER)."),
       },
     },
-    async ({ appPath, projectId, url }) => {
+    async ({ appPath, projectId, url, minScore }) => {
       if (!existsSync(appPath)) return err(`appPath "${appPath}" does not exist.`);
 
       let project: store.Project | null = null;
@@ -41,6 +48,8 @@ export function registerAuditTools(server: McpServer): void {
       }
 
       const report = await runAudit(appPath, url);
+      // Apply the configurable quality gate (runAudit's built-in threshold is 80).
+      report.passed = report.score >= minScore && report.criticalFindings.length === 0;
 
       if (project) {
         store.saveAudit(project.id, report.score, report as unknown as Record<string, unknown>);

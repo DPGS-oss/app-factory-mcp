@@ -1,7 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 
 export const PHASES = [
@@ -59,7 +60,15 @@ export interface AuditRecord {
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 // dist/state -> repo root is two levels up
 const repoRoot = join(moduleDir, "..", "..");
-const dataDir = process.env.APP_FACTORY_DATA_DIR ?? join(repoRoot, "data");
+
+/** Data lives next to the repo when running from a clone (backward compatible),
+ * otherwise in ~/.app-factory (e.g. when installed via npm/npx). */
+function defaultDataDir(): string {
+  const repoData = join(repoRoot, "data");
+  if (existsSync(join(repoData, "appfactory.db"))) return repoData;
+  return join(homedir(), ".app-factory");
+}
+const dataDir = process.env.APP_FACTORY_DATA_DIR ?? defaultDataDir();
 
 let db: DatabaseSync | null = null;
 
@@ -129,6 +138,25 @@ function getDb(): DatabaseSync {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_events_project ON events (project_id, id);
+    CREATE TABLE IF NOT EXISTS lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id TEXT,
+      topic TEXT NOT NULL,
+      lesson TEXT NOT NULL,
+      evidence TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS goals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id TEXT NOT NULL,
+      goal TEXT NOT NULL,
+      success_criteria TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      progress TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
   return db;
 }
@@ -363,11 +391,17 @@ export function updateWorkPackage(
 export interface EventRecord {
   id: number;
   projectId: string | null;
-  kind: "tool" | "note" | "decision" | "problem" | "milestone";
+  kind: "tool" | "note" | "decision" | "problem" | "milestone" | "digest";
   name: string;
   detail: string;
   createdAt: string;
 }
+
+/** When a project accumulates more than this many auto-journaled tool events,
+ * the oldest COMPACT_BATCH of them are rolled up into a single digest event.
+ * Manual entries (decisions, problems, milestones, notes) are never compacted. */
+const COMPACT_THRESHOLD = 300;
+const COMPACT_BATCH = 200;
 
 export function logEvent(
   projectId: string | null,
@@ -378,6 +412,46 @@ export function logEvent(
   getDb()
     .prepare(`INSERT INTO events (project_id, kind, name, detail, created_at) VALUES (?, ?, ?, ?, ?)`)
     .run(projectId, kind, name, detail.slice(0, 2000), now());
+  if (kind === "tool" && projectId) compactEvents(projectId);
+}
+
+/** Roll up old auto-journaled tool events into a digest so long projects stay recappable. */
+export function compactEvents(projectId: string, threshold = COMPACT_THRESHOLD, batch = COMPACT_BATCH): boolean {
+  const d = getDb();
+  const count = (
+    d.prepare(`SELECT COUNT(*) AS n FROM events WHERE project_id = ? AND kind = 'tool'`).get(projectId) as {
+      n: number;
+    }
+  ).n;
+  if (count <= threshold) return false;
+
+  const oldest = d
+    .prepare(`SELECT * FROM events WHERE project_id = ? AND kind = 'tool' ORDER BY id ASC LIMIT ?`)
+    .all(projectId, batch) as Record<string, unknown>[];
+  if (oldest.length === 0) return false;
+
+  const byTool = new Map<string, number>();
+  const errors: string[] = [];
+  for (const e of oldest) {
+    const name = e.name as string;
+    byTool.set(name, (byTool.get(name) ?? 0) + 1);
+    if ((e.detail as string).includes("-> ERROR")) {
+      errors.push(`${name}: ${(e.detail as string).slice(0, 120)}`);
+    }
+  }
+  const summary =
+    `Digest of ${oldest.length} tool calls from ${oldest[0].created_at} to ${oldest[oldest.length - 1].created_at}. ` +
+    `Calls: ${[...byTool.entries()].map(([n, c]) => `${n}x${c}`).join(", ")}.` +
+    (errors.length ? ` Errors (${errors.length}): ${errors.slice(0, 10).join(" | ")}` : " No errors.");
+
+  const lastId = oldest[oldest.length - 1].id as number;
+  d.prepare(`DELETE FROM events WHERE project_id = ? AND kind = 'tool' AND id <= ?`).run(projectId, lastId);
+  d.prepare(`INSERT INTO events (project_id, kind, name, detail, created_at) VALUES (?, 'digest', 'journal-digest', ?, ?)`).run(
+    projectId,
+    summary.slice(0, 2000),
+    now(),
+  );
+  return true;
 }
 
 export function getEvents(projectId?: string, limit = 100): EventRecord[] {
@@ -394,6 +468,126 @@ export function getEvents(projectId?: string, limit = 100): EventRecord[] {
     detail: r.detail as string,
     createdAt: r.created_at as string,
   }));
+}
+
+// ---------- lessons (the brain's self-improvement) ----------
+
+export interface Lesson {
+  id: number;
+  projectId: string | null;
+  topic: string;
+  lesson: string;
+  evidence: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export function addLesson(projectId: string | null, topic: string, lesson: string, evidence: string): Lesson {
+  const d = getDb();
+  d.prepare(`INSERT INTO lessons (project_id, topic, lesson, evidence, active, created_at) VALUES (?, ?, ?, ?, 1, ?)`).run(
+    projectId,
+    topic,
+    lesson,
+    evidence,
+    now(),
+  );
+  const row = d.prepare(`SELECT * FROM lessons ORDER BY id DESC LIMIT 1`).get() as Record<string, unknown>;
+  return rowToLesson(row);
+}
+
+/** Active lessons relevant to a project: its own plus all global ones. */
+export function getLessons(projectId?: string, includeInactive = false): Lesson[] {
+  const activeClause = includeInactive ? "" : "AND active = 1";
+  const rows = (
+    projectId
+      ? getDb()
+          .prepare(`SELECT * FROM lessons WHERE (project_id = ? OR project_id IS NULL) ${activeClause} ORDER BY id DESC LIMIT 50`)
+          .all(projectId)
+      : getDb().prepare(`SELECT * FROM lessons WHERE 1=1 ${activeClause} ORDER BY id DESC LIMIT 50`).all()
+  ) as Record<string, unknown>[];
+  return rows.map(rowToLesson);
+}
+
+export function deactivateLesson(id: number): boolean {
+  const d = getDb();
+  d.prepare(`UPDATE lessons SET active = 0 WHERE id = ?`).run(id);
+  const row = d.prepare(`SELECT active FROM lessons WHERE id = ?`).get(id) as { active: number } | undefined;
+  return row !== undefined && row.active === 0;
+}
+
+function rowToLesson(row: Record<string, unknown>): Lesson {
+  return {
+    id: row.id as number,
+    projectId: (row.project_id as string) ?? null,
+    topic: row.topic as string,
+    lesson: row.lesson as string,
+    evidence: row.evidence as string,
+    active: (row.active as number) === 1,
+    createdAt: row.created_at as string,
+  };
+}
+
+// ---------- goals ----------
+
+export interface Goal {
+  id: number;
+  projectId: string;
+  goal: string;
+  successCriteria: string;
+  status: "active" | "done" | "paused";
+  progress: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function setGoal(projectId: string, goal: string, successCriteria: string): Goal {
+  const d = getDb();
+  const ts = now();
+  d.prepare(`INSERT INTO goals (project_id, goal, success_criteria, status, progress, created_at, updated_at) VALUES (?, ?, ?, 'active', '', ?, ?)`).run(
+    projectId,
+    goal,
+    successCriteria,
+    ts,
+    ts,
+  );
+  const row = d.prepare(`SELECT * FROM goals ORDER BY id DESC LIMIT 1`).get() as Record<string, unknown>;
+  return rowToGoal(row);
+}
+
+export function getGoals(projectId: string, status?: Goal["status"]): Goal[] {
+  const rows = (
+    status
+      ? getDb().prepare(`SELECT * FROM goals WHERE project_id = ? AND status = ? ORDER BY id DESC`).all(projectId, status)
+      : getDb().prepare(`SELECT * FROM goals WHERE project_id = ? ORDER BY id DESC`).all(projectId)
+  ) as Record<string, unknown>[];
+  return rows.map(rowToGoal);
+}
+
+export function updateGoal(id: number, progress?: string, status?: Goal["status"]): Goal | null {
+  const d = getDb();
+  const existing = d.prepare(`SELECT * FROM goals WHERE id = ?`).get(id) as Record<string, unknown> | undefined;
+  if (!existing) return null;
+  d.prepare(`UPDATE goals SET progress = COALESCE(?, progress), status = COALESCE(?, status), updated_at = ? WHERE id = ?`).run(
+    progress ?? null,
+    status ?? null,
+    now(),
+    id,
+  );
+  const row = d.prepare(`SELECT * FROM goals WHERE id = ?`).get(id) as Record<string, unknown>;
+  return rowToGoal(row);
+}
+
+function rowToGoal(row: Record<string, unknown>): Goal {
+  return {
+    id: row.id as number,
+    projectId: row.project_id as string,
+    goal: row.goal as string,
+    successCriteria: row.success_criteria as string,
+    status: row.status as Goal["status"],
+    progress: row.progress as string,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
 }
 
 // ---------- audits ----------
