@@ -1,0 +1,395 @@
+{
+  "$comment": "The 'everything an app needs' knowledge base. Drives the planning interview (questions) and the audit (verify items). priority: core = always asked, recommended = asked when keywords match the description/answers, optional = only surfaced in the blueprint as considerations.",
+  "categories": [
+    {
+      "id": "purpose",
+      "title": "Purpose & audience",
+      "keywords": [],
+      "questions": [
+        {
+          "id": "purpose.users",
+          "priority": "core",
+          "question": "Who are the primary users of this app, and what is the single most important thing they should be able to do?",
+          "why": "Everything else (features, design, stack) is prioritized around this."
+        },
+        {
+          "id": "purpose.success",
+          "priority": "core",
+          "question": "What does success look like? (e.g. 'my team uses it daily', 'paying customers', 'portfolio piece')",
+          "why": "Determines how much to invest in scale, polish and monetization."
+        }
+      ],
+      "verify": ["The main user flow works end to end without errors."]
+    },
+    {
+      "id": "platforms",
+      "title": "Device targets & platforms",
+      "keywords": ["mobile", "phone", "desktop", "offline", "app store", "windows", "mac", "android", "ios"],
+      "questions": [
+        {
+          "id": "platforms.targets",
+          "priority": "core",
+          "question": "Where should this run? Options: responsive web app / installable PWA / native mobile (App Store & Play Store) / desktop app (Windows, Mac, Linux) / local self-hosted. You can pick multiple.",
+          "why": "Selects the scaffold: Next.js PWA (web), Expo (native mobile), Tauri (desktop), Docker Compose (local)."
+        }
+      ],
+      "verify": ["App renders correctly on mobile, tablet and desktop viewport sizes."]
+    },
+    {
+      "id": "auth",
+      "title": "Identity & authentication",
+      "keywords": ["login", "account", "user", "signup", "sign in", "profile", "team", "member"],
+      "questions": [
+        {
+          "id": "auth.needed",
+          "priority": "core",
+          "question": "Do users need accounts/login? If yes: email+password, magic links, social login (Google/GitHub/Apple), or a mix?",
+          "why": "Auth choice affects the database, session handling and legal requirements."
+        },
+        {
+          "id": "auth.roles",
+          "priority": "recommended",
+          "question": "Are there different user roles (e.g. admin, editor, viewer)? What can each role do?",
+          "why": "Role-based access control must be designed into the data model, not bolted on."
+        }
+      ],
+      "verify": [
+        "Passwords are hashed (never stored or logged in plain text).",
+        "Sessions/tokens expire and can be revoked.",
+        "Protected routes reject unauthenticated and unauthorized users (server-side, not just hidden UI)."
+      ]
+    },
+    {
+      "id": "data",
+      "title": "Data model & storage",
+      "keywords": ["save", "store", "database", "record", "list", "history", "upload", "file", "image", "photo"],
+      "questions": [
+        {
+          "id": "data.entities",
+          "priority": "core",
+          "question": "What are the main things the app stores? (e.g. recipes, invoices, workouts) Roughly what fields does each have, and how do they relate?",
+          "why": "The data model is the backbone; getting it right early avoids painful migrations."
+        },
+        {
+          "id": "data.files",
+          "priority": "recommended",
+          "question": "Will users upload files or images? Roughly how large and how many?",
+          "why": "File storage needs size limits, type validation and a storage backend."
+        },
+        {
+          "id": "data.retention",
+          "priority": "recommended",
+          "question": "Should users be able to export or permanently delete their data?",
+          "why": "Data portability and deletion are both good practice and legally required in many regions."
+        }
+      ],
+      "verify": [
+        "All user input is validated server-side.",
+        "Database queries are parameterized (no SQL injection).",
+        "File uploads validate type and size server-side."
+      ]
+    },
+    {
+      "id": "features",
+      "title": "Core features",
+      "keywords": [],
+      "questions": [
+        {
+          "id": "features.must",
+          "priority": "core",
+          "question": "List the features the first version MUST have. Then list features that would be nice later. Be ruthless: what is the minimum that is genuinely useful?",
+          "why": "A small excellent v1 beats a large broken one. The nice-to-haves go into the roadmap."
+        },
+        {
+          "id": "features.search",
+          "priority": "recommended",
+          "question": "Do users need to search or filter content? How (full-text, tags, categories)?",
+          "why": "Search strategy affects the database and indexing choices."
+        },
+        {
+          "id": "features.realtime",
+          "priority": "recommended",
+          "question": "Does anything need to update live without a refresh (chat, collaboration, live dashboards)?",
+          "why": "Realtime needs websockets/subscriptions, which shapes the backend."
+        }
+      ],
+      "verify": ["Every must-have feature from the interview exists and works."]
+    },
+    {
+      "id": "payments",
+      "title": "Payments & monetization",
+      "keywords": ["pay", "subscription", "price", "sell", "shop", "checkout", "billing", "money", "premium", "plan"],
+      "questions": [
+        {
+          "id": "payments.model",
+          "priority": "recommended",
+          "question": "Will the app take payments? One-time purchases, subscriptions, or marketplace-style (paying out to others)?",
+          "why": "Payment model determines the Stripe integration pattern and legal obligations."
+        }
+      ],
+      "verify": [
+        "Payment secrets live only in server-side environment variables.",
+        "Webhooks verify signatures.",
+        "Prices/amounts are computed server-side, never trusted from the client."
+      ]
+    },
+    {
+      "id": "notifications",
+      "title": "Notifications & communication",
+      "keywords": ["email", "notify", "notification", "remind", "alert", "sms", "push"],
+      "questions": [
+        {
+          "id": "notifications.channels",
+          "priority": "recommended",
+          "question": "Should the app send emails, push notifications or reminders? For what events?",
+          "why": "Transactional email/push needs a provider and unsubscribe handling."
+        }
+      ],
+      "verify": ["Emails include unsubscribe/notification-preference options where required."]
+    },
+    {
+      "id": "offline",
+      "title": "Offline & sync",
+      "keywords": ["offline", "sync", "airplane", "field", "spotty", "connection"],
+      "questions": [
+        {
+          "id": "offline.needed",
+          "priority": "recommended",
+          "question": "Does the app need to work offline or with a poor connection? What must work offline?",
+          "why": "Offline-first requires local storage plus conflict resolution and changes the architecture."
+        }
+      ],
+      "verify": ["If offline was requested: core flows work with network disabled and sync on reconnect."]
+    },
+    {
+      "id": "i18n",
+      "title": "Languages & regions",
+      "keywords": ["language", "translate", "international", "country", "currency", "timezone"],
+      "questions": [
+        {
+          "id": "i18n.langs",
+          "priority": "recommended",
+          "question": "Which languages and regions should be supported at launch? Any right-to-left languages?",
+          "why": "Retro-fitting i18n is expensive; wiring it from day one is cheap."
+        }
+      ],
+      "verify": ["Dates, numbers and currencies format via locale-aware APIs, not string concatenation."]
+    },
+    {
+      "id": "a11y",
+      "title": "Accessibility",
+      "keywords": [],
+      "questions": [
+        {
+          "id": "a11y.level",
+          "priority": "core",
+          "question": "Any specific accessibility requirements (e.g. WCAG AA compliance for a public/government audience)? Default: keyboard navigation, screen-reader labels and adequate contrast are always included.",
+          "why": "Accessibility is a baseline quality gate in the audit, not an optional extra."
+        }
+      ],
+      "verify": [
+        "All interactive elements are keyboard-reachable and have accessible names.",
+        "Color contrast meets WCAG AA.",
+        "Images have alt text; forms have labels."
+      ]
+    },
+    {
+      "id": "seo",
+      "title": "SEO & discoverability",
+      "keywords": ["seo", "google", "landing", "marketing", "public", "blog", "share"],
+      "questions": [
+        {
+          "id": "seo.public",
+          "priority": "recommended",
+          "question": "Are there public pages that should rank on search engines or look good when shared on social media?",
+          "why": "Public pages need server rendering, meta tags, Open Graph images and a sitemap."
+        }
+      ],
+      "verify": ["Public pages have titles, meta descriptions, Open Graph tags and a sitemap."]
+    },
+    {
+      "id": "analytics",
+      "title": "Analytics & telemetry",
+      "keywords": ["analytics", "track", "metric", "usage", "measure"],
+      "questions": [
+        {
+          "id": "analytics.needed",
+          "priority": "recommended",
+          "question": "Do you want usage analytics? Privacy-friendly (Plausible/Umami) or full-featured (PostHog/GA4)?",
+          "why": "Analytics choice affects privacy policy and cookie banners."
+        }
+      ],
+      "verify": ["Analytics respects Do-Not-Track and is disclosed in the privacy policy."]
+    },
+    {
+      "id": "errors",
+      "title": "Error tracking & logging",
+      "keywords": [],
+      "questions": [
+        {
+          "id": "errors.tracking",
+          "priority": "recommended",
+          "question": "Should production errors be reported somewhere (e.g. Sentry), or is console/file logging enough for now?",
+          "why": "You cannot fix what you cannot see; error tracking pays for itself immediately."
+        }
+      ],
+      "verify": [
+        "Unhandled errors show a friendly error page, never a stack trace.",
+        "Logs never contain passwords, tokens or personal data."
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security",
+      "keywords": [],
+      "questions": [
+        {
+          "id": "security.sensitivity",
+          "priority": "core",
+          "question": "How sensitive is the data (public, personal, financial, medical)? Any compliance needs (GDPR, HIPAA, SOC2)?",
+          "why": "Data sensitivity sets the security bar for encryption, access control and auditing."
+        }
+      ],
+      "verify": [
+        "No secrets committed to the repository (scanned).",
+        "Dependencies have no known critical vulnerabilities (scanned).",
+        "Security headers set (CSP, X-Frame-Options, etc.).",
+        "Rate limiting on auth and expensive endpoints.",
+        "HTTPS enforced in production."
+      ]
+    },
+    {
+      "id": "performance",
+      "title": "Performance & optimization",
+      "keywords": ["fast", "slow", "scale", "performance", "concurrent", "load"],
+      "questions": [
+        {
+          "id": "performance.scale",
+          "priority": "recommended",
+          "question": "Roughly how many users/records should this handle in year one? (10s, 1000s, millions?)",
+          "why": "Scale expectations decide caching, pagination and infrastructure choices."
+        }
+      ],
+      "verify": [
+        "Lighthouse performance score >= 80 on key pages.",
+        "Images are optimized and lazy-loaded.",
+        "Lists are paginated; no unbounded queries."
+      ]
+    },
+    {
+      "id": "legal",
+      "title": "Legal & compliance",
+      "keywords": [],
+      "questions": [
+        {
+          "id": "legal.pages",
+          "priority": "recommended",
+          "question": "Does the app need Terms of Service, a Privacy Policy or cookie consent? (If it stores personal data of EU users: yes.) App Factory can generate tailored templates with generate_legal_docs.",
+          "why": "Legal pages and consent flows must exist before launch, not after."
+        },
+        {
+          "id": "legal.region",
+          "priority": "recommended",
+          "question": "Where are your users located (EU, US/California, India, worldwide)? Could any users be children under 13?",
+          "why": "Regions determine which regulations apply: GDPR (EU), CCPA/CPRA (California), DPDP (India), COPPA (children under 13)."
+        }
+      ],
+      "verify": [
+        "Privacy policy and terms pages exist and are linked if personal data is stored.",
+        "Cookie/tracking consent is collected before non-essential cookies fire (if EU users).",
+        "Users can request export and deletion of their data (if GDPR/CCPA applies)."
+      ]
+    },
+    {
+      "id": "admin",
+      "title": "Admin & operations",
+      "keywords": ["admin", "manage", "moderate", "dashboard", "support"],
+      "questions": [
+        {
+          "id": "admin.needs",
+          "priority": "recommended",
+          "question": "Do you (the owner) need an admin area to manage users/content, or is direct database access fine at first?",
+          "why": "Admin tooling is often forgotten and then urgently needed on launch day."
+        }
+      ],
+      "verify": ["Admin routes are protected by role checks on the server."]
+    },
+    {
+      "id": "backups",
+      "title": "Backups & data safety",
+      "keywords": [],
+      "questions": [
+        {
+          "id": "backups.tolerance",
+          "priority": "recommended",
+          "question": "If the database was lost, how much data could you afford to lose \u2014 an hour, a day, nothing?",
+          "why": "Backup frequency and strategy follow directly from this answer."
+        }
+      ],
+      "verify": ["Automated backups are configured (or documented as a deliberate non-goal)."]
+    },
+    {
+      "id": "integrations",
+      "title": "Integrations",
+      "keywords": ["integrate", "api", "calendar", "slack", "webhook", "import", "export", "connect"],
+      "questions": [
+        {
+          "id": "integrations.list",
+          "priority": "recommended",
+          "question": "Should the app connect to any external services (calendars, Slack, existing APIs, spreadsheets)?",
+          "why": "Integrations often dominate the effort; they must be planned, not improvised."
+        }
+      ],
+      "verify": ["External API keys are stored server-side and calls have timeouts and error handling."]
+    },
+    {
+      "id": "deployment",
+      "title": "Deployment & hosting",
+      "keywords": [],
+      "questions": [
+        {
+          "id": "deployment.target",
+          "priority": "core",
+          "question": "How should this be deployed? Options: web hosting (Vercel/Netlify \u2014 easiest), your own server via Docker, purely local on your machine, or app stores (mobile). Also: any custom domain?",
+          "why": "The deploy target shapes environment config, secrets handling and the CI pipeline."
+        },
+        {
+          "id": "deployment.budget",
+          "priority": "recommended",
+          "question": "What is the monthly hosting budget? (Free tier only, ~$20, or whatever it takes?)",
+          "why": "Budget decides between free tiers, serverless and dedicated infrastructure."
+        }
+      ],
+      "verify": [
+        "Environment variables documented in .env.example (no real values).",
+        "Production build completes without errors.",
+        "Health check endpoint exists."
+      ]
+    },
+    {
+      "id": "branding",
+      "title": "Branding & design",
+      "keywords": [],
+      "questions": [
+        {
+          "id": "branding.existing",
+          "priority": "core",
+          "question": "Is there an existing brand (name, logo, colors) to follow, or should the design gallery propose fresh directions? Any apps whose look you love or hate?",
+          "why": "Feeds the design gallery so the mockups start close to your taste."
+        }
+      ],
+      "verify": ["Chosen fonts, colors and icon set from the design gallery are applied consistently."]
+    },
+    {
+      "id": "testing",
+      "title": "Testing",
+      "keywords": [],
+      "questions": [],
+      "verify": [
+        "Unit tests exist for core business logic.",
+        "At least one end-to-end test covers the main user flow.",
+        "Type checking passes with no errors."
+      ]
+    }
+  ]
+}

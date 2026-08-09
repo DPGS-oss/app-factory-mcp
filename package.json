@@ -1,0 +1,28 @@
+{
+  "name": "app-factory-mcp",
+  "version": "0.1.0",
+  "description": "App Factory - an orchestrator MCP for Cursor that guides the agent from an app description to a deployed, audited application.",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "app-factory-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsc --watch",
+    "smoke": "node scripts/smoke-test.mjs"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
+  }
+}
