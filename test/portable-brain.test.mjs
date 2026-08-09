@@ -145,3 +145,57 @@ test("init is safe when workspace parent dirs missing", () => {
   assert.ok(existsSync(join(ws, ".app-factory", "state.json")));
   void mkdirSync;
 });
+
+test("lessonsRanked preserves ranking metadata in state + markdown", () => {
+  const ws = mkdtempSync(join(tmpdir(), "pb-rank-"));
+  const p = store.createProject(
+    "pb-rank",
+    "Deploy a Next.js app to Vercel with audit gates",
+    ws,
+  );
+  store.setPhase(p.id, "deploy");
+  store.addLesson(
+    null,
+    "windows-shell",
+    "When killing process trees on Windows, use taskkill /T /F because SIGKILL leaves orphans",
+    "test_app events",
+  );
+  store.addLesson(
+    p.id,
+    "deploy-vercel",
+    "When Vercel deploy fails on missing env, set project env vars before retrying the deploy",
+    "deploy-failed journal",
+  );
+  store.addLesson(
+    p.id,
+    "css-tokens",
+    "Always use design tokens for colors instead of hard-coded hex in components",
+    "audit contrast",
+  );
+  brain.initPortableBrain(p.id);
+
+  const state = JSON.parse(readFileSync(join(ws, ".app-factory", "state.json"), "utf8"));
+  assert.ok(Array.isArray(state.lessonsRanked) && state.lessonsRanked.length >= 2);
+  assert.ok(Array.isArray(state.lessonsLearned) && state.lessonsLearned.length >= 2);
+  assert.equal(state.lessons.length, state.lessonsRanked.length);
+
+  const top = state.lessonsRanked[0];
+  assert.equal(typeof top.id, "number");
+  assert.ok(["global", "project"].includes(top.scope));
+  assert.equal(typeof top.relevance, "number");
+  assert.equal(typeof top.rankReason, "string");
+  assert.ok(top.relevance >= 0 && top.relevance <= 1);
+  // Deploy-phase context should prefer the deploy lesson near the top.
+  assert.ok(
+    state.lessonsRanked.some((l) => l.topic === "deploy-vercel"),
+    "deploy lesson present",
+  );
+  assert.match(state.lessonsLearned[0], /rel=/);
+
+  const agents = readFileSync(join(ws, "AGENTS.md"), "utf8");
+  const brainMd = readFileSync(join(ws, ".app-factory", "BRAIN.md"), "utf8");
+  assert.match(agents, /Ranked lessons \(obey these\)/);
+  assert.match(brainMd, /Ranked lessons \(lessonsRanked\)/);
+  assert.match(brainMd, /rel=/);
+  assert.match(agents, /deploy-vercel|windows-shell|css-tokens/);
+});

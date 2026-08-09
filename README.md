@@ -156,6 +156,9 @@ repo**:
 
 Secrets are scrubbed before write. Sync is idempotent and runs automatically after start/import,
 answers, design choices, blueprint/build progress, audits, goals, refine, and `log_event`.
+`state.json` includes **`lessonsRanked`** (id, scope, relevance, rankReason) and
+`lessonsLearned` (formatted lines); `AGENTS.md` / `BRAIN.md` surface the top ranked lessons
+prominently so outside agents obey the same binding rules as `get_context`.
 
 | Agent | How it picks up |
 |-------|-----------------|
